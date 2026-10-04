@@ -7,6 +7,7 @@ import streamlit as st
 from dotenv import load_dotenv
 from google.genai.errors import APIError
 from pypdf.errors import PdfReadError
+from streamlit.errors import StreamlitSecretNotFoundError
 
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -14,8 +15,17 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGener
 from langchain_community.vectorstores import Chroma
 from langchain_core.prompts import ChatPromptTemplate
 
-# Load environment variables (.env)
-load_dotenv()
+# Load environment variables from the project directory, independent of the
+# directory from which Streamlit was started.
+load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
+
+if not os.getenv("GOOGLE_API_KEY"):
+    try:
+        secret_key = st.secrets["GOOGLE_API_KEY"]
+    except (KeyError, StreamlitSecretNotFoundError):
+        secret_key = None
+    if secret_key:
+        os.environ["GOOGLE_API_KEY"] = str(secret_key)
 
 # Page configuration
 st.set_page_config(

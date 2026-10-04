@@ -25,5 +25,19 @@ store, and ask questions about its contents.
    streamlit run app.py
    ```
 
+## Deploy to Streamlit Community Cloud
+
+1. Push the project to GitHub without committing `.env`.
+2. Create a Streamlit Community Cloud app from the GitHub repository, selecting
+   `app.py` as the entry point.
+3. In the app's **Settings → Secrets**, add the replacement API key in TOML form:
+
+   ```toml
+   GOOGLE_API_KEY = "your_google_api_key"
+   ```
+
+Keep API keys out of source code and Git history. If a key has been shared or
+exposed, revoke it and create a replacement before deploying.
+
 The PDF files and generated Chroma database are local data and are not included in
 the repository. Upload a PDF through the app to create a local vector store.
