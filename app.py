@@ -12,6 +12,7 @@ from streamlit.errors import StreamlitSecretNotFoundError
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
+from langchain_google_genai.chat_models import GoogleGenerativeAIError
 from langchain_community.vectorstores import Chroma
 from langchain_core.prompts import ChatPromptTemplate
 
@@ -54,12 +55,11 @@ if not os.getenv("GOOGLE_API_KEY"):
 @st.cache_resource
 def load_models():
     embedding_model = GoogleGenerativeAIEmbeddings(model="gemini-embedding-001")
-    primary_llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
-    fallback_llm = ChatGoogleGenerativeAI(model="gemini-3.8-flash", temperature=0)
-    return embedding_model, primary_llm, fallback_llm
+    llm = ChatGoogleGenerativeAI(model="gemini-3.8-flash", temperature=0)
+    return embedding_model, llm
 
 
-embedding_model, llm, fallback_llm = load_models()
+embedding_model, llm = load_models()
 
 
 def invoke_gemini(prompt_value):
@@ -69,10 +69,9 @@ def invoke_gemini(prompt_value):
         except APIError as error:
             if error.code != 503:
                 raise
-            if attempt < 2:
-                time.sleep(2 ** attempt)
-
-    return fallback_llm.invoke(prompt_value)
+            if attempt == 2:
+                raise
+            time.sleep(2 ** attempt)
 
 
 def extract_response_text(content: str | list[str | dict]) -> str:
@@ -145,7 +144,7 @@ with st.sidebar:
                         st.session_state.vectorstore = vectorstore
                         st.session_state.messages = []
                         st.success("Document processed successfully! Ask questions below.")
-                except (APIError, OSError, PdfReadError, ValueError) as error:
+                except (APIError, GoogleGenerativeAIError, OSError, PdfReadError, ValueError) as error:
                     st.error(f"Could not process this PDF: {error}")
 
     st.markdown("---")
@@ -194,10 +193,12 @@ else:
                 except APIError as error:
                     if error.code == 503:
                         st.error(
-                            "Gemini is temporarily overloaded. The app retried and tried a backup model; "
+                            "Gemini is temporarily overloaded. The app retried; "
                             "please try again in a few minutes."
                         )
                     else:
                         st.error(f"Could not get an answer from Gemini: {error}")
+                except GoogleGenerativeAIError as error:
+                    st.error(f"Could not get an answer from Gemini: {error}")
                 except ValueError as error:
                     st.error(f"Could not get an answer from Gemini: {error}")
