@@ -15,10 +15,10 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGener
 from langchain_community.vectorstores import Chroma
 from langchain_core.prompts import ChatPromptTemplate
 
-# Load environment variables from the project directory, independent of the
-# directory from which Streamlit was started.
+# Load environment variables from the project directory
 load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
 
+# Check Streamlit Cloud Secrets if GOOGLE_API_KEY is not in local env
 if not os.getenv("GOOGLE_API_KEY"):
     try:
         secret_key = st.secrets["GOOGLE_API_KEY"]
@@ -47,15 +47,15 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 
 if not os.getenv("GOOGLE_API_KEY"):
-    st.error("GOOGLE_API_KEY is missing. Add it to your .env file and restart the app.")
+    st.error("GOOGLE_API_KEY is missing. Add it to your .env file or Streamlit Secrets and restart the app.")
     st.stop()
 
 
 @st.cache_resource
 def load_models():
     embedding_model = GoogleGenerativeAIEmbeddings(model="gemini-embedding-001")
-    primary_llm = ChatGoogleGenerativeAI(model="gemini-3.8-flash", temperature=0)
-    fallback_llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+    primary_llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+    fallback_llm = ChatGoogleGenerativeAI(model="gemini-3.8-flash", temperature=0)
     return embedding_model, primary_llm, fallback_llm
 
 
@@ -134,6 +134,7 @@ with st.sidebar:
                         chunk_size=1000,
                         chunk_overlap=200
                     ).split_documents(docs)
+
                     if not chunks:
                         st.error("This PDF contains no readable text to search.")
                     else:
