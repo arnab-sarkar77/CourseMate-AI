@@ -19,14 +19,21 @@ from langchain_core.prompts import ChatPromptTemplate
 # Load environment variables from the project directory
 load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
 
-# Check Streamlit Cloud Secrets if GOOGLE_API_KEY is not in local env
-if not os.getenv("GOOGLE_API_KEY"):
+
+def get_google_api_key() -> str | None:
     try:
         secret_key = st.secrets["GOOGLE_API_KEY"]
     except (KeyError, StreamlitSecretNotFoundError):
         secret_key = None
+
     if secret_key:
-        os.environ["GOOGLE_API_KEY"] = str(secret_key)
+        return str(secret_key).strip()
+
+    environment_key = os.getenv("GOOGLE_API_KEY")
+    return environment_key.strip() if environment_key else None
+
+
+google_api_key = get_google_api_key()
 
 # Page configuration
 st.set_page_config(
@@ -47,19 +54,26 @@ if "vectorstore" not in st.session_state:
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-if not os.getenv("GOOGLE_API_KEY"):
+if not google_api_key:
     st.error("GOOGLE_API_KEY is missing. Add it to your .env file or Streamlit Secrets and restart the app.")
     st.stop()
 
 
 @st.cache_resource
-def load_models():
-    embedding_model = GoogleGenerativeAIEmbeddings(model="gemini-embedding-001")
-    llm = ChatGoogleGenerativeAI(model="gemini-3.8-flash", temperature=0)
+def load_models(_api_key: str):
+    embedding_model = GoogleGenerativeAIEmbeddings(
+        model="gemini-embedding-001",
+        google_api_key=_api_key
+    )
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-3.8-flash",
+        temperature=0,
+        google_api_key=_api_key
+    )
     return embedding_model, llm
 
 
-embedding_model, llm = load_models()
+embedding_model, llm = load_models(google_api_key)
 
 
 def invoke_gemini(prompt_value):
@@ -144,7 +158,16 @@ with st.sidebar:
                         st.session_state.vectorstore = vectorstore
                         st.session_state.messages = []
                         st.success("Document processed successfully! Ask questions below.")
-                except (APIError, GoogleGenerativeAIError, OSError, PdfReadError, ValueError) as error:
+                except APIError as error:
+                    if error.code == 401:
+                        st.error(
+                            "Google rejected the Gemini API key. In Streamlit Cloud, replace the root-level "
+                            "GOOGLE_API_KEY secret with a valid Gemini API key (not an OAuth token), save it, "
+                            "and reboot the app."
+                        )
+                    else:
+                        st.error(f"Could not process this PDF: {error}")
+                except (GoogleGenerativeAIError, OSError, PdfReadError, ValueError) as error:
                     st.error(f"Could not process this PDF: {error}")
 
     st.markdown("---")
